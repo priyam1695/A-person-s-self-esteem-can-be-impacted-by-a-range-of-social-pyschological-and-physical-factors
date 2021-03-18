@@ -1,0 +1,718 @@
+---
+title: 'PSI CA PART I '
+R Packages: dplyr, pastecs, ggplot2, pysch, semTools, car, pander
+R Version: 3.5.1
+output: 
+  pdf_document: default
+  html_document: default
+Student Number: D17129566
+Student Name: PRIYAM BANSAL
+Programme Code: DT228A
+---
+
+#Introduction
+
+#1.1 Research Question
+
+A person's overall health can be impacted by a range of social, pyschological and physical factors. This analysis is
+concerned with a person's smoking habbits, sleep impact on energy level, sleep impact on mood , restless sleepers,
+anxiety, sleep impact on overall well-being, caffeine consumption each day, general health rate, depression, and the
+satisfaction in the amount of sleep.
+when overall health is considered then evergy level and sleep factors are also a part in explaining that as in this
+cigarettes smoked per day can determine the energy level thatsleep has an impact on , another factor that sllep can
+impact on is mood which can have some relatin with restless sleep which will directly effect on the health next
+considering anxiety issues when a person will be having anxiety and its level is higher it it effect its sleep imact
+on overall well-being will will consicuently effect on overall health. there can be a relation or a difference
+between caffeine cosumption each day and its effect on general health. Depression leads to a huge part in the health
+a person is having which will effect the satisfaction in the amount of sleep which will lead to inspect the overall
+health.The hypotheses made below are looked for as there is actually relationship or difference between the variales?
+
+
+##1.2 Hypotheses
+
+The particular hypotheses to be investigated are:
+
+####Hypothesis 1:
+
+H0:  There is no correlation between cigarettes smoked per day and Rate of impact of sleep on energy level
+
+HA:  There is a correlation between cigarettes smoked per day and Rate of impact of sleep  on energy level
+
+####Hypothesis 2:
+
+H0:There is no difference in sleep impact on mood for the restless sleeper or not a restless sleeper
+
+HA:There is a difference in sleep impact on mood for the restless sleeper or not a restless sleeper
+
+####Hypothesis 3:
+
+H0:There is no correlation between level of anxiety and sleep impact on overall well-being
+
+HA:There is a correlation between level of anxiety and sleep impact on overall well-being
+
+####Hypothesis 4:
+
+H0:There is no difference in drinks containing caffeine per day or general health rate
+
+HA:There is a difference in drinks containing caffeine per day or general health rate
+
+####Hypothesis 5:
+
+H0:There is no difference in level of depression or satisfaction with the amount of sleep
+
+HA:There is a difference in level of depression or satisfaction with the amount of sleep
+
+```{r set_up}
+library(rmarkdown)
+library(effsize)
+library(lsr)
+library(ggplot2) #For creating histograms with more detail than plot
+library(psych) # Some useful descriptive functions
+library(pastecs)#Some useful descriptive functions
+library(lavaan)
+library(semTools)#For skewness and kurtosis
+library(carData)
+library(car) # For Levene's test for homogeneity of variance 
+library(pander) # For creating a table
+library(dplyr)
+library(FSA)
+library(dunn.test)
+
+
+#Read in the dataset
+sleep <- read.csv('sleep5ED.csv', header = TRUE, sep = ",")
+View(sleep)
+```
+#2. METHODOLOGY
+
+##2.1 Variables of interest
+The variables of interest used in this research are shown below:
+  
+```{r var_interest}
+my.data <- " 
+  Concept                                      | Variable Name    | Statistical Type      | Possible Values
+  How many cigarettes per day                    | somkenum        | scale                  | Cigs per day 
+  Rate impact of sleep problem on energy level   | impact2         | Scale                  | 1=not at all 10=to a great extent 
+  
+  Restless sleeper                               | restlss         | Nominal                | 1=yes 2=no
+  Rate impact of sleep problem on mood           | impact1         | Scale                  | 1=not at all 10=to a great extent
+   HADS Anxiety                                  | anxiety         | Scale                  | range from 0=no anxiety to 21=severe anxiety 
+ Rate impact of sleep problem on overall         | impact6         | Scale                  | 1=not at all 10=to a great extent 
+  well-being 
+  How many caffeine drinks per day               | caffeine        |Scale                   |drink per day
+  Rate general health                            | healthrate      | scale                  | 1=very poor 10=very good 
+   HADS Depression                               |depress          | scale                  |range from 0=no depression to 21=severe depression 
+  Satisfaction with amount of sleep              | satsleep        | Scale                  | 1=very dissatisfied 10=very satisfied "
+
+df <- read.delim(textConnection(my.data),header=FALSE,sep="|",strip.white=TRUE,stringsAsFactors=FALSE)
+names(df) <- unname(as.list(df[1,])) # headers
+df <- df[-1,] # remove first row
+row.names(df)<-NULL
+pander(df, style = 'rmarkdown')
+View(df)
+```
+
+##2.2 cigarettes smoked per day 
+
+###Code for inspecting the variable
+
+```{r inspect_var1}
+pastecs::stat.desc(sleep$smokenum, basic=F)
+#skewness and kurtosis from semTools with standard error 
+cgskew<-semTools::skew(sleep$smokenum)
+cgkurt<-semTools::kurtosis(sleep$smokenum)
+cgskew
+cgkurt
+
+#We divide the skew statistic by the standard error to get the standardised score
+stdskew1<-cgskew[1]/cgskew[2]
+stdkurt1<-cgkurt[1]/cgkurt[2]
+stdkurt1
+stdskew1
+
+outliers <- sleep %>% 
+  filter(scale(smokenum) >3.29 | scale(smokenum) < -3.29)
+outliers
+
+#count them using dplyr summarize
+numoutliers<-outliers %>%
+  summarize(count=n())
+fullcount<-sleep %>%
+  summarize(count=n())
+numoutliers
+fullcount
+```
+
+###Report of normality analysis
+
+Cigarettes smoked per day is represented by a scale variable in the dataset which was calculated from the Overall
+Health  questionnaire. Inspection of the histogram and normality plot (see figure 1 and figure 2) shows that the
+distribution does not conform exactly to a normal distribution.
+Inspection of standardized normal scores for skewness and kurtosis indicated that while both do not fall with an
+acceptable range of +/-2, (skewness of `r cgskew[1]` SE=`r cgskew[2]`, kurtosis of `r cgkurt[1]` SE=`r cgkurt[2]`.
+Further inspection of the variable using standardized scores showed that `r round((numoutliers/fullcount)*100,
+digits=2)`% standardised scores were inside  the acceptable range of +/3.29. Total self esteem will therefore be
+treated as a not normal within this analysis (stat.desc(sleep$smokenum, basic=F))
+
+```{r plots_var1}
+ggplot(sleep, aes(x = smokenum), binwidth = 2) + 
+  geom_histogram(aes(y = ..density..), fill = 'yellow') + 
+  geom_density(colour = 'red') + xlab(expression(bold('cigarette smoked per day'))) + 
+  ylab(expression(bold('Density')))+ggtitle('Figure 1: Number of cigarettes smoked per day')
+
+#Create a qqplot
+qqnorm(sleep$smokenum,  main="Figure 2: QQPlot or cigarettes smoked per day")
+qqline(sleep$smokenum, col=2)
+```
+## 2.3 RATE OF IMPACT OF SLEEP ON ENERGY LEVEL
+
+###Code for inspecting the variable
+
+```{r inspect_var2}
+pastecs::stat.desc(sleep$impact2, basic=F)
+#skewness and kurtosis from semTools with standard error 
+elskew<-semTools::skew(sleep$impact2)
+elkurt<-semTools::kurtosis(sleep$impact2)
+elskew
+elkurt
+
+#We divide the skew statistic by the standard error to get the standardised score
+stdskew2<-elskew[1]/elskew[2]
+stdkurt2<-elkurt[1]/elkurt[2]
+stdkurt2
+stdskew2
+
+outliers <- sleep %>% 
+  filter(scale(impact2) >3.29 | scale(impact2) < -3.29)
+outliers
+#count them using dplyr summarize
+numoutliers<-outliers %>%
+  summarize(count=n())
+fullcount<-sleep %>%
+  summarize(count=n())
+numoutliers
+fullcount
+```
+
+###Report of normality analysis
+
+sleep impact on energy level is represented by a scale variable in the dataset which was calculated from the Overall
+Health  questionnaire. Inspection of the histogram and normality plot (see figure 3 and figure 4) shows that the
+distribution does not conform exactly to a normal distribution.
+Inspection of standardized normal scores for skewness and kurtosis indicated that while both do not fall with an
+acceptable range of +/-2, (skewness of `r elskew[1]` SE=`r elskew[2]`, kurtosis of `r elkurt[1]` SE=`r elkurt[2]`.
+Further inspection of the variable using standardized scores showed that `r round((numoutliers/fullcount)*100,
+digits=2)`% standardised scores were inside  the acceptable range of +/3.29. Total self esteem will therefore be
+treated as a not normal within this analysis (stat.desc(sleep$impact2, basic=F))
+
+```{r plot_var2 }
+ggplot(sleep, aes(x = impact2), binwidth = 2) + 
+  geom_histogram(aes(y = ..density..), fill = 'yellow', alpha = 0.5) + 
+  geom_density(colour = 'red') + xlab(expression(bold('sleep impact on energy level'))) + 
+  ylab(expression(bold('Density')))+ ggtitle("Figure3:Rate of impact of sleep on Energy Level ")
+
+qqnorm(sleep$impact2, main = "Figure3: QQPlot or sleep impact on energy level")
+qqline(sleep$impact2, col=2)
+```
+##2.4 RESTLESS SLLEPER
+
+restless sleeper is represented by a categorical variable in the dataset. The dataset contains data from 88 yes
+respondents and 176 no respondents.
+```{r somdesc_restlss}
+table(sleep$restlss)
+
+#Get descriptive stastitics by group
+psych::describeBy(sleep$impact1, sleep$restlss)
+```
+
+```{r bar_restlss}
+bar <- ggplot(sleep, aes(restlss, impact1))
+bar<- bar + stat_summary(fun.y = mean, geom = "bar", fill = "black", colour = "white", na.rm = FALSE) +
+  stat_summary(fun.data = mean_cl_normal, geom = "pointrange", na.rm = FALSE) + labs(x = "restless sleep", y = "
+ impact of sleep problem on mood", title="Figure 5:Rate of impact of sleep problem on mood by restless sleep") 
+
+bar
+```
+
+## 2.5 RATE OF IMPACT OF SLEEP ON MOOD
+
+###Code for inspecting the variable
+
+```{r inspect_var4}
+pastecs::stat.desc(sleep$impact1, basic=F)
+#skewness and kurtosis from semTools with standard error 
+mdskew<-semTools::skew(sleep$impact1)
+mdkurt<-semTools::kurtosis(sleep$impact1)
+mdskew
+mdkurt
+
+#We divide the skew statistic by the standard error to get the standardised score
+stdskew4<-mdskew[1]/mdskew[2]
+stdkurt4<-mdkurt[1]/mdkurt[2]
+stdkurt4
+stdskew4
+
+outliers <- sleep %>% 
+  filter(scale(impact1) >3.29 | scale(impact1) < -3.29)
+
+#count them using dplyr summarize
+numoutliers<-outliers %>%
+  summarize(count=n())
+fullcount<-sleep %>%
+  summarize(count=n())
+numoutliers
+fullcount
+```
+###Report of normality analysis
+Rate of impact of sleep on mood is represented by a scale variable in the dataset which was calculated from the Total
+Perceived Control questionnaire. Inspection of the histogram and normality plot (see figure 5 and figure 6) shows
+that the distribution does not conform exactly to a normal distribution. Inspection of standardized normal scores for
+skewness and kurtosis indicated that while skewness was not an issue  falling with an acceptable range of +/-2,
+(skewness of `r mdskew[1]` SE=`r mdskew[2]`), kurtosis was outside acceptable bounds, (kurtosis of `r mdkurt[1]`
+SE=`r mdkurt[2]` . Further inspection of the variable using standardized scores showed that only `r numoutliers` or
+`r round((numoutliers/fullcount)*100, digits=2)`% standardised scores were outside the acceptable range of +/3.29.
+Total perceived control of internal states will therefore be treated as a normal within this analysis
+pastecs::stat.desc(sleep$impact1, basic=F)
+
+```{r polt_var4}
+ggplot(sleep, aes(x = impact1), binwidth = 2) + 
+  geom_histogram(aes(y = ..density..), fill = 'yellow', alpha = 0.5) + 
+  geom_density(colour = 'red') + xlab(expression(bold('sleep impact on mood'))) + 
+  ylab(expression(bold('Density'))) + ggtitle("Figure5: Rate of impact of sleep on mood")
+qqnorm(sleep$impact1, main = "Figure6 :QQ plot or sleep impact on mood")
+qqline(sleep$impact1, col=2)
+```
+
+## 2.6 LEVEL OF ANXIETY
+
+###Code for inspecting the variable
+```{r inspect_var5}
+pastecs::stat.desc(sleep$anxiety, basic=F)
+#skewness and kurtosis from semTools with standard error 
+anskew<-semTools::skew(sleep$anxiety)
+ankurt<-semTools::kurtosis(sleep$anxiety)
+ankurt
+anskew
+
+#We divide the skew statistic by the standard error to get the standardised score
+stdskew5<-anskew[1]/anskew[2]
+stdkurt5<-ankurt[1]/ankurt[2]
+stdskew5
+stdkurt5
+
+outliers <- sleep %>% 
+  filter(scale(anxiety) >3.29 | scale(anxiety) < -3.29)
+outliers
+#count them using dplyr summarize
+numoutliers<-outliers %>%
+  summarize(count=n())
+fullcount<-sleep %>%
+  summarize(count=n())
+numoutliers
+fullcount
+```
+
+###Report of normality analysis
+Level of anxiety is represented by a scale variable in the dataset which was calculated from the Total Perceived
+Control questionnaire. Inspection of the histogram and normality plot (see figure 7 and figure 8) shows that the
+distribution does not conform exactly to a normal distribution. Inspection of standardized normal scores for skewness
+and kurtosis indicated that while skewness was an issue  falling with an acceptable range of +/-2, (skewness of `r
+anskew[1]` SE=`r anskew[2]`), kurtosis was not outside acceptable bounds, (kurtosis of `r ankurt[1]` SE=`r ankurt[2]`
+. Further inspection of the variable using standardized scores showed that only `r numoutliers` or `r
+round((numoutliers/fullcount)*100, digits=2)`% standardised scores were not outside the acceptable range of +/3.29.
+Total perceived control of internal states will therefore be treated as not normal within this analysis
+pastecs::stat.desc(sleep$anxiety, basic=F)
+
+```{r plot_var5}
+ggplot(sleep, aes(x = anxiety), binwidth = 2) + 
+  geom_histogram(aes(y = ..density..), fill = 'yellow', alpha = 0.5) + 
+  geom_density(colour = 'red') + xlab(expression(bold('anxiety'))) + 
+  ylab(expression(bold('Density'))) + ggtitle("Figure7: Level of Anxiety ")
+qqnorm(sleep$anxiety, main = "Figure8: QQPlot or level of anxiety")
+qqline(sleep$anxiety, col=2)
+```
+
+## 2.7 SLEEP IMPACT ON OVERALL WELL-BEING
+
+###Code for inspecting the variable
+```{r inspect_var6}
+pastecs::stat.desc(sleep$impact6, basic=F)
+#skewness and kurtosis from semTools with standard error 
+obskew<-semTools::skew(sleep$impact6)
+obkurt<-semTools::kurtosis(sleep$impact6)
+obskew
+obkurt
+#We divide the skew statistic by the standard error to get the standardised score
+stdskew6<-obskew[1]/obskew[2]
+stdkurt6<-obkurt[1]/obkurt[2]
+stdkurt6
+stdskew6
+
+outliers <- sleep %>% 
+  filter(scale(impact6) >3.29 | scale(impact6) < -3.29)
+outliers
+#count them using dplyr summarize
+numoutliers<-outliers %>%
+  summarize(count=n())
+fullcount<-sleep %>%
+  summarize(count=n())
+numoutliers
+fullcount
+```
+
+###Report of normality analysis
+Rate of impact of sleep on overall well-being is represented by a scale variable in the dataset which was calculated
+from the Total Perceived Control questionnaire. Inspection of the histogram and normality plot (see figure 9 and
+figure10) shows that the distribution does not conform exactly to a normal distribution. Inspection of standardized
+normal scores for skewness and kurtosis indicated that while skewness was not an issue  falling with an acceptable
+range of +/-2, (skewness of `r obskew[1]` SE=`r obskew[2]`), kurtosis was not outside acceptable bounds, (kurtosis of
+`r obkurt[1]` SE=`r obkurt[2]` . Further inspection of the variable using standardized scores showed that only `r
+numoutliers` or `r round((numoutliers/fullcount)*100, digits=2)`% standardised scores were not outside the acceptable
+range of +/3.29. Total perceived control of internal states will therefore be treated as a normal within this
+analysis pastecs::stat.desc(sleep$impac6, basic=F)
+```{r plot_var6}
+ggplot(sleep, aes(x = impact6), binwidth = 2) + 
+  geom_histogram(aes(y = ..density..), fill = 'yellow', alpha = 0.5) + 
+  geom_density(colour = 'red') + xlab(expression(bold('sleep impact on overall wellbeing'))) + 
+  ylab(expression(bold('Density'))) + ggtitle("Figure9: Rate of impact of sleep on overall well_being")
+qqnorm(sleep$impact6, main = "Figure 10:QQPlot or sleep impact on overall well-being")
+qqline(sleep$impact6, col=2)
+```
+
+## 2.8 DRINKS CONTAINING CAFFEINE PER DAY
+
+###Code for inspecting the variable
+```{r inspect_var7}
+pastecs::stat.desc(sleep$caffeine, basic=F)
+#skewness and kurtosis from semTools with standard error 
+cfskew<-semTools::skew(sleep$caffeine)
+cfkurt<-semTools::kurtosis(sleep$caffeine)
+cfskew
+cfkurt
+
+#We divide the skew statistic by the standard error to get the standardised score
+stdskew7<-cfskew[1]/cfskew[2]
+stdkurt7<-cfkurt[1]/cfkurt[2]
+stdkurt7
+stdskew7
+
+outliers <- sleep %>% 
+  filter(scale(caffeine) >3.29 | scale(caffeine) < -3.29)
+outliers
+#count them using dplyr summarize
+numoutliers<-outliers %>%
+  summarize(count=n())
+fullcount<-sleep %>%
+  summarize(count=n())
+numoutliers
+fullcount
+```
+###Report of normality analysis
+Drinks containing caffeine per day is represented by a scale variable in the dataset which was calculated from the
+Total Perceived Control questionnaire. Inspection of the histogram and normality plot (see figure 11 and figure 12)
+shows that the distribution does not conform exactly to a normal distribution. Inspection of standardized normal
+scores for skewness and kurtosis indicated that while skewness was an issue  falling with an acceptable range of
++/-2, (skewness of `r cfskew[1]` SE=`r cfskew[2]`), kurtosis was not outside acceptable bounds, (kurtosis of `r
+cfkurt[1]` SE=`r cfkurt[2]` . Further inspection of the variable using standardized scores showed that only `r
+numoutliers` or `r round((numoutliers/fullcount)*100, digits=2)`% standardised scores were not outside the acceptable
+range of +/3.29. Total perceived control of internal states will therefore be treated as not normal within this
+analysis pastecs::stat.desc(sleep$caffeine, basic=F)
+
+```{r plot_var7}
+ggplot(sleep, aes(x = caffeine), binwidth = 2) + 
+  geom_histogram(aes(y = ..density..), fill = 'yellow', alpha = 0.5) + 
+  geom_density(colour = 'red') + xlab(expression(bold('caffeine per day'))) + 
+  ylab(expression(bold('Density'))) + ggtitle("Figure11: drinks containing caffeine per day")
+qqnorm(sleep$caffeine, main="Figure12: QQPlot or drinks containing caffeine per day")
+qqline(sleep$caffeine, col=2)
+```
+
+## 2.9 GENERAL HEALTH RATE
+
+###Code for inspecting the variable
+```{r inspect_var8}
+pastecs::stat.desc(sleep$healthrate, basic=F)
+#skewness and kurtosis from semTools with standard error 
+hrskew<-semTools::skew(sleep$healthrate)
+hrkurt<-semTools::kurtosis(sleep$healthrate)
+hrskew
+hrkurt
+
+#We divide the skew statistic by the standard error to get the standardised score
+stdskew8<-hrskew[1]/hrskew[2]
+stdkurt8<-hrkurt[1]/hrkurt[2]
+stdkurt8
+stdskew8
+
+outliers <- sleep %>% 
+  filter(scale(healthrate) >3.29 | scale(healthrate) < -3.29)
+outliers
+#count them using dplyr summarize
+numoutliers<-outliers %>%
+  summarize(count=n())
+fullcount<-sleep %>%
+  summarize(count=n())
+numoutliers
+fullcount
+```
+
+###Report of normality analysis
+General health rate is represented by a scale variable in the dataset which was calculated from the Total Perceived
+Control questionnaire. Inspection of the histogram and normality plot (see figure 13 and figure 14) shows that the
+distribution does not conform exactly to a normal distribution. Inspection of standardized normal scores for skewness
+and kurtosis indicated that while skewness was an issue  falling with an acceptable range of +/-2, (skewness of `r
+hrskew[1]` SE=`r hrskew[2]`), kurtosis was not outside acceptable bounds, (kurtosis of `r hrkurt[1]` SE=`r hrkurt[2]`
+. Further inspection of the variable using standardized scores showed that only `r numoutliers` or `r
+round((numoutliers/fullcount)*100, digits=2)`% standardised scores were not outside the acceptable range of +/3.29.
+Total perceived control of internal states will therefore be treated as not normal within this analysis
+pastecs::stat.desc(sleep$healthrate, basic=F)
+
+```{r plot_var8}
+ggplot(sleep, aes(x = healthrate), binwidth = 2) + 
+  geom_histogram(aes(y = ..density..), fill = 'yellow', alpha = 0.5) + 
+  geom_density(colour = 'red') + xlab(expression(bold('general health'))) + 
+  ylab(expression(bold('Density')))+ggtitle("Figure13 : Rate of General Health")
+qqnorm(sleep$healthrate, main="Figure13 : QQPlot or Rate of General Health")
+qqline(sleep$healthrate, col=2)
+```
+
+## 2.10 LEVEL OF DEPRESSION
+
+###Code for inspecting the variable
+```{r inspect_var9}
+pastecs::stat.desc(sleep$depress, basic=F)
+#skewness and kurtosis from semTools with standard error 
+dpskew<-semTools::skew(sleep$depress)
+dpkurt<-semTools::kurtosis(sleep$depress)
+dpskew
+dpkurt
+
+#We divide the skew statistic by the standard error to get the standardised score
+stdskew9<-dpskew[1]/dpskew[2]
+stdkurt9<-dpkurt[1]/dpkurt[2]
+stdkurt9
+stdskew9
+
+outliers <- sleep %>% 
+  filter(scale(depress) >3.29 | scale(depress) < -3.29)
+outliers
+#count them using dplyr summarize
+numoutliers<-outliers %>%
+  summarize(count=n())
+fullcount<-sleep %>%
+  summarize(count=n())
+numoutliers
+fullcount
+```
+
+###Report of normality analysis
+Level of depression is represented by a scale variable in the dataset which was calculated from the Total Perceived
+Control questionnaire. Inspection of the histogram and normality plot (see figure 15 and figure 16) shows that the
+distribution does not conform exactly to a normal distribution. Inspection of standardized normal scores for skewness
+and kurtosis indicated that while skewness was an issue  falling with an acceptable range of +/-2, (skewness of `r
+dpskew[1]` SE=`r dpskew[2]`), kurtosis was not outside acceptable bounds, (kurtosis of `r dpkurt[1]` SE=`r dpkurt[2]`
+. Further inspection of the variable using standardized scores showed that only `r numoutliers` or `r
+round((numoutliers/fullcount)*100, digits=2)`% standardised scores were not outside the acceptable range of +/3.29.
+Total perceived control of internal states will therefore be treated as not normal within this analysis
+pastecs::stat.desc(sleep$depress, basic=F)
+
+```{r plot_var9}
+ggplot(sleep, aes(x = depress), binwidth = 2) + 
+  geom_histogram(aes(y = ..density..), fill = 'yellow', alpha = 0.5) + 
+  geom_density(colour = 'red') + xlab(expression(bold('depression'))) + 
+  ylab(expression(bold('Density')))+ ggtitle("Figure15 :Level of Depression")
+qqnorm(sleep$depress, main="Figure15 :QQPlot or  Level of Depression")
+qqline(sleep$depress, col=2)
+```
+
+## 2.11 SATISFATION WITH THE AMOUNT OF SLEEP
+
+###Code for inspecting the variable
+```{r inspect_var10}
+pastecs::stat.desc(sleep$satsleep, basic=F)
+#skewness and kurtosis from semTools with standard error 
+stskew<-semTools::skew(sleep$satsleep)
+stkurt<-semTools::kurtosis(sleep$satsleep)
+stskew
+stkurt
+
+#We divide the skew statistic by the standard error to get the standardised score
+stdskew10<-stskew[1]/stskew[2]
+stdkurt10<-stkurt[1]/stkurt[2]
+stdkurt10
+stdskew10
+
+outliers <- sleep %>% 
+  filter(scale(satsleep) >3.29 | scale(satsleep) < -3.29)
+outliers
+#count them using dplyr summarize
+numoutliers<-outliers %>%
+  summarize(count=n())
+fullcount<-sleep %>%
+  summarize(count=n())
+numoutliers
+fullcount
+```
+
+###Report of normality analysis
+Satisfaction with the amount of sleep is represented by a scale variable in the dataset which was calculated from the
+Total Perceived Control questionnaire. Inspection of the histogram and normality plot (see figure 17 and figure18)
+shows that the distribution does not conform exactly to a normal distribution. Inspection of standardized normal
+scores for skewness and kurtosis indicated that while skewness was not an issue  falling with an acceptable range of
++/-2, (skewness of `r stskew[1]` SE=`r stskew[2]`), kurtosis was outside acceptable bounds, (kurtosis of `r
+stkurt[1]` SE=`r stkurt[2]` . Further inspection of the variable using standardized scores showed that only `r
+numoutliers` or `r round((numoutliers/fullcount)*100, digits=2)`% standardised scores were outside the acceptable
+range of +/3.29. Total perceived control of internal states will therefore be treated as a normal within this
+analysis pastecs::stat.desc(sleep$impac6, basic=F)
+
+```{r plot_var10}
+ggplot(sleep, aes(x = satsleep), binwidth = 2) + 
+  geom_histogram(aes(y = ..density..), fill = 'yellow', alpha = 0.5) + 
+  geom_density(colour = 'red') + xlab(expression(bold('satisfaction with the amount of sleep'))) + 
+  ylab(expression(bold('Density')))+ ggtitle("Figure 17:Satisfaction with the amount of sleep")
+qqnorm(sleep$satsleep, main="Figure 18: QQPlot or Satisfaction with the amount of sleep")
+qqline(sleep$satsleep, col=2)
+```
+##1.1 Hypotheses
+
+The particular hypotheses to be investigated are:
+
+####Hypothesis 1:
+
+H0:  There is no correlation between cigarettes smoked per day and Rate of impact of sleep on energy level
+
+HA:  There is a correlation between cigarettes smoked per day and Rate of impact of sleep  on energy level
+
+
+
+```{r correlation_cigarettes to energy level}
+cor.test(sleep$smokenum, sleep$impact2, method = "spearman")
+#spearman correlation
+cor.test(sleep$smokenum, sleep$impact2, method = "kendall")
+#kendall correlation to calculate accute p-value
+scatter<-ggplot(sleep, aes(sleep$smokenum, sleep$impact2))
+scatter + geom_point()+ geom_smooth(method = 'lm', colour='Red', se=F)+ labs(x="cigarettes smoked per day", y="rate of impact of sleep on energy level ")
+```
+
+The relationship between cigarettes smoked per day and rate impact of sleep on energy level was investigated using a
+Spearman correlation because ther was no normality so used a non-parametric Test . A small/weak and negative
+correlation was found (rho =-0.1442013 S = 1108.7, p-value = 0.6442).There is evidence to support rejecting the null
+hypothesis that there is relationship between cigarettes smoked per day and rate impact of sleep on energy level 
+
+
+####Hypothesis 2:
+
+H0:There is no difference in sleep impact on mood for the restless sleeper or not a restless sleeper
+
+HA:There is a difference in sleep impact on mood for the restless sleeper or not a restless sleeper
+
+#### Independent t-test
+```{r difference restless sleep}
+
+```
+A Levene's test for homogeneity of variance was conducted and indicated equality of variance for sleep impact on mood
+for restless sleeper(group1) or not restless sleeper(group2) respondents (F=7.468, Pr=0.007). An independent-samples
+t-test was conducted to compare sleep impact on mood for group1 and group2 respondents. No significant difference in
+the scores for  was found (M=6.07, SD= 2.19 for group respondents, M= 5.4, SD= 2.64 for group 2 respondents), (t=
+1.5077, p = 0.1343). The cohen.d test result (2.877(large)) While the result is statistical significance which
+indicates there is evidence to accept the null hypothesis that there is no difference in self esteem scores for
+respondents of different groups,  the very large effect size is a not a  concern .
+
+
+####Hypothesis 3:
+
+H0:There is no correlation between level of anxiety and sleep impact on overall well-being
+
+HA:There is a correlation between level of anxiety and sleep impact on overall well-being
+
+```{r correlation_amxiety and well-being}
+cor.test(sleep$anxiety, sleep$impact6, method = "spearman")
+#spearman correlation
+cor.test(sleep$smokenum, sleep$impact6, method = "kendall")
+#kendall correlation to calculate accute p-value
+scatter<-ggplot(sleep, aes(sleep$anxiety, sleep$impact6))
+scatter + geom_point()+ geom_smooth(method = 'lm', colour='Red', se=F)+ labs(x="anxiety", y="sleep impact on overall well-being ")
+```
+
+The relationship between level of anxiety and sleep impact on overall well-being was investigated using a Spearman
+correlation because ther was no normality so used a non-parametric Test . A medium/moderate and positive correlation
+was found (  rho =0.3482 S = 192420, p-value = 0.3687).  There is evidence to support rejecting the null hypothesis
+that there is relationship between  
+
+####Hypothesis 4:
+
+H0:There is no difference in drinks containing caffeine per day or general health rate
+
+HA:There is a difference in drinks containing caffeine per day or general health rate
+
+####kruskal-wallis
+```{r differnce_on healthrate}
+describeBy(sleep$caffeine, sleep$healthrate)
+
+kt<- kruskal.test(caffeine ~ healthrate, data=sleep)
+tmp<- dunnTest(x=sleep$caffeine, g=factor(sleep$healthrate), method="bonferroni") 
+kt<- as.numeric(kt)
+print(tmp, dunn.test.results = TRUE)
+n<- sum(table(sleep$caffeine, sleep$healthrate))
+n<-as.numeric(n)
+#calculated epsilon square forkruskal-wallis
+epsilonSq<- kt*(n+1)/(n^2-1) 
+epsilonSq
+```
+A kruskal-wallis test for homogeneity of variance was conducted and indicated equality of variance for drinks
+containing caffeine per day for general health rate respondents (chi-square=12.395, df=7 and p-value=0.09) col mean
+-row mean(0.320-1.00).there is epsilon squared epsilonSq<- kt*(n+1)/(n^2-1) value for the effect i.e(0.0482) While
+the result is statistical significance which indicates there is evidence to reject the null hypothesis that there is
+no difference  and p <= alpha.
+
+####Hypothesis 5:
+
+H0:There is no difference in level of depression or satisfaction with the amount of sleep
+
+HA:There is a difference in level of depression or satisfaction with the amount of sleep
+
+####kruskal-wallis
+```{r difference}
+describeBy(sleep$depress, sleep$satsleep)
+
+kw<- kruskal.test(depress ~ satsleep, data=sleep)
+tmp<- dunnTest(x=sleep$depress, g=factor(sleep$satsleep), method="bonferroni") 
+kw<- as.numeric(kw)
+print(tmp, dunn.test.results = TRUE)
+n<- sum(table(sleep$depress, sleep$satsleep))
+n<-as.numeric(n)
+#calculated epsilon square forkruskal-wallis
+epsilonSq<- kw *(n+1)/(n^2-1) 
+epsilonSq
+``` 
+A kruskal-wallis test for homogeneity of variance was conducted and indicated equality of variance for level of
+depression and satisfaction in the amount of sleep respondents (chi-square=16.44, df=9 and p-value=0.06) col mean
+-row mean(0.201-1.00).there is epsilon squared epsilonSq<- kt*(n+1)/(n^2-1) value for the effect i.e(0.6204) While
+the result is statistical significance which indicates there is evidence to reject the null hypothesis that there is
+no difference and p <= alpha.
+
+#4.0 DISCUSSION
+
+while comparing cigarettes smoked per day and the sleep impact on energy level there is a weak and a negative
+correlation between the two which shows that there is a relation between the two of them but it is weak or say not
+that approppraite but then also we can say there is a relation between the two
+when considering restless sleepers it has two groups people who arerestless sleepers and those who aren't so when
+taking a difference of restless sleepers with the sleep impact on mood we can get a difference and a large difference
+due to which the result can be taken out in the normal way . The t-test value says that there is a large value for
+the effect
+while comparing level of anxiety in people and the sleep impact on overall well-being so while seeing the correlation
+between the two we see that they are not normal so we did spearman test on them which gave us a moderate and a
+positive relationship between the two there are found many people who have anxiety but there sleepis not that much
+effected and visa versa also .so the value we obtained rho is also states that while comparing both the data the
+result obtained is moderate
+Another hypothesis having the variables people drinking caffeine per day and impact on general health while these data are not categorical and are parametric also we did a kruskal-wallis test for finding the difference , as we see that there is epsilon square done to find the effect which occurs 0.482 . rejecting the null hypothses is the p<= alpha so as here p is 0.09 and alpha is 0.05.
+Another hypothesis having the variables level of depression and satisfaction in the amount of sleep while these data
+are not categorical and are parametric also we did a kruskal-wallis test for finding the difference , as we see that
+there is epsilon square done to find the effect which occurs 0.620 . rejecting the null hypothses is the p<= alpha so
+as here p is 0.06 and alpha is 0.05.
+
+#5.0 REFERENCE
+
+Field, A., Miles, J., & Field, Z. (2012). Discovering statistics using R. Sage publications.
+George, D. (2011).
+
